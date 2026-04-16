@@ -196,6 +196,77 @@ int head_update(const ObjectID *new_commit) {
 int commit_create(const char *message, ObjectID *commit_id_out) {
     // TODO: Implement commit creation
     // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
-    return -1;
+     ObjectID tree_id, commit_id, parent_id;
+    char parent_hex[HASH_HEX_SIZE + 1] = {0};
+
+    // 1. Build tree from index
+    if (tree_from_index(&tree_id) != 0) {
+        fprintf(stderr, "error: failed to build tree\n");
+        return -1;
+    }
+
+    // 2. Read parent from HEAD (if exists)
+    int has_parent = (head_read(&parent_id) == 0);
+
+    // 3. Get author
+    const char *author = pes_author();
+
+    // 4. Get current time
+    time_t now = time(NULL);
+
+    // 5. Convert hashes to hex
+    char tree_hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(&tree_id, tree_hex);
+
+    if (has_parent) {
+        hash_to_hex(&parent_id, parent_hex);
+    }
+
+    // 6. Build commit content
+    char buffer[4096];
+
+    if (has_parent) {
+        snprintf(buffer, sizeof(buffer),
+            "tree %s\n"
+            "parent %s\n"
+            "author %s %ld\n"
+            "committer %s %ld\n"
+            "\n"
+            "%s\n",
+            tree_hex,
+            parent_hex,
+            author, now,
+            author, now,
+            message);
+    } else {
+        snprintf(buffer, sizeof(buffer),
+            "tree %s\n"
+            "author %s %ld\n"
+            "committer %s %ld\n"
+            "\n"
+            "%s\n",
+            tree_hex,
+            author, now,
+            author, now,
+            message);
+    }
+
+    // 7. Write commit object
+    if (object_write(OBJ_COMMIT, buffer, strlen(buffer), &commit_id) != 0) {
+        fprintf(stderr, "error: failed to write commit\n");
+        return -1;
+    }
+
+    // 8. Update HEAD
+    if (head_update(&commit_id) != 0) {
+        fprintf(stderr, "error: failed to update HEAD\n");
+        return -1;
+    }
+
+    // 9. Print success
+    char commit_hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(&commit_id, commit_hex);
+    printf("Committed as %s\n", commit_hex);
+
+    return 0;
 }
